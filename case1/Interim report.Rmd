@@ -73,3 +73,25 @@ birth_data = transform(birth_data, c("PARITY"), 1)
 glimpse(birth_data)
 ```
 
+
+## Exploratory Analysis
+[analysis: unnatural gestational time(80 weeks) found in the plot -> record error -> remove data point; MORE analysis based on the plots]
+```{r}
+ggplot(birth_data, aes(GEST, BWTG)) +
+  geom_point(aes(col=CIGPN), size=1, shape=2) +
+  facet_wrap(~CIGPN, labeller = labeller(CIGPN=c("1"="smoke", "0"="not smoke"))) +
+  ggtitle("Birth Weight vs. Gestation Time for Non-smokers and Smokers")
+
+ggplot(birth_data, aes(x=BWTG)) +
+  geom_histogram(aes(y = ..density.., fill=CIGPN), color="grey", alpha=0.7) +
+  stat_function(fun = dnorm, args = list(mean = mean(birth_data$BWTG), sd = sd(birth_data$BWTG))) +
+  geom_vline(xintercept = mean(birth_data$BWTG), linetype="dashed") +
+  facet_wrap(~CIGPN, labeller = labeller(CIGPN=c("1"="smoke", "0"="not smoke"))) +
+  ggtitle("Birth Weight Distribution for Non-smokers and Smokers")
+```
+
+# Clean data
+```{r}
+# remove the data point with more than 80 weeks gestational age 
+birth_data = birth_data %>% filter(GEST < 50)
+```
