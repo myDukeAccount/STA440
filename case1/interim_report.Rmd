@@ -1,0 +1,135 @@
+---
+title: 'Case Study 1: Birth Weight'
+author: "Moriah Taylor, Faraz Yashar, AJ Eckmann, Audreya Metz, Naya Chen"
+date: "9/4/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, function checking for installed packages, include=FALSE, echo=FALSE}
+# Source for function: https://stackoverflow.com/questions/9341635/check-for-installed-packages-before-running-install-packages
+pkgTest <- function(x)
+  {
+    if (!require(x,character.only = TRUE))
+    {
+      install.packages(x,repos = "http://cran.r-project.org", dep=TRUE)
+        if(!require(x,character.only = TRUE)) stop("Package not found")
+    }
+  }
+```
+
+```{r}
+# Load any necessary packages here
+pkgTest("tidyr")
+pkgTest("dplyr")
+pkgTest("purrr")
+pkgTest("tidyverse")
+library(tidyr)
+library(dplyr)
+library(purrr)
+library(tidyverse)
+```
+
+```{r}
+# read in birth data with NAs
+o_data = read.csv("data/Yr1116Birth.csv", na.strings=c("9","99", "9999"))
+```
+
+```{r}
+# remove missing rows
+birth_data = na.omit(o_data)
+
+# convert to categorical variables
+# SEX, CORES(residence), MRACER(race), MHISP(Hispanic origin)
+birth_data = birth_data %>% mutate(
+  SEX = as.factor(SEX),
+  CORES = as.factor(CORES),
+  MRACER = as.factor(MRACER),
+  MHISP = as.factor(MHISP),
+)
+
+# function to convert numeric values to two-level categorical variables
+# based on threshold
+transform = function(data, cols, threshold) {
+  for (i in 1:length(cols)) {
+    col = cols[i]
+    data[col] = as.factor(
+      case_when(
+        data[col] <= threshold ~ 0,
+        data[col] > threshold ~ 1,
+      )
+    )
+  }
+  return(data)
+}
+
+# convert average #cig to categorical: smoke or not smoke
+birth_data = transform(birth_data, c("CIGPN", "CIGFN", "CIGSN", "CIGLN"), 0)
+# convert #pregancy to categorical: pregnant before or never
+birth_data = transform(birth_data, c("PARITY"), 1)
+glimpse(birth_data)
+```
+
+
+## Exploratory Analysis
+[analysis: unnatural gestational time(80 weeks) found in the plot -> record error -> remove data point; MORE analysis based on the plots]
+```{r}
+ggplot(birth_data, aes(GEST, BWTG)) +
+  geom_point(aes(col=CIGPN), size=1, shape=2) +
+  facet_wrap(~CIGPN, labeller = labeller(CIGPN=c("1"="smoke", "0"="not smoke"))) +
+  ggtitle("Birth Weight vs. Gestation Time for Non-smokers and Smokers")
+
+ggplot(birth_data, aes(x=BWTG)) +
+  geom_histogram(aes(y = ..density.., fill=CIGPN), color="grey", alpha=0.7) +
+  stat_function(fun = dnorm, args = list(mean = mean(birth_data$BWTG), sd = sd(birth_data$BWTG))) +
+  geom_vline(xintercept = mean(birth_data$BWTG), linetype="dashed") +
+  facet_wrap(~CIGPN, labeller = labeller(CIGPN=c("1"="smoke", "0"="not smoke"))) +
+  ggtitle("Birth Weight Distribution for Non-smokers and Smokers")
+```
+
+# Clean data
+```{r}
+# remove the data point with more than 80 weeks gestational age 
+birth_data = birth_data %>% filter(GEST < 50)
+```
+
+### Modeling
+
+```{r}
+fullmodel = lm(BWTG~., data=birth_data)
+summary(fullmodel)
+```
+
+```{r}
+#Full model is way to many variables, so now we will use backwards selection to select the variables that are most important to this model
+model2 = lm(BWTG ~ SEX+CIGPN+CIGFN+CIGSN+CIGLN+PARITY+GEST+YOB+PLUR, data = birth_data)
+summary(model2)
+```
+
+```{r}
+step(model2, direction = "backward")
+```
+
+```{r}
+regfit_backward <- regsubsets(BWTG ~ SEX+CIGPN+CIGFN+CIGSN+CIGLN+PARITY+GEST+YOB+PLUR, data = birth_data, 
+                              method="backward")
+summary(regfit_backward)
+```
+
+
+```{r}
+#All pretty simililar RSS, but since we want to narrow our model down to make it a little more meaningful, based on regsubsets backwards selection, the best 6 variables to chose are SEX, CIGFN, CIGLN, PARITY, GEST and PLUR, so these are what we will use to make our final model
+
+finalmodel <- lm(BWTG ~ SEX+CIGFN+CIGLN+PARITY+GEST+PLUR, data = birth_data)
+summary(finalmodel)
+
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(finalmodel)
+```
+
