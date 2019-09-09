@@ -5,9 +5,7 @@ date: "9/4/2019"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+
 
 ```{r, function checking for installed packages, include=FALSE, echo=FALSE}
 # Source for function: https://stackoverflow.com/questions/9341635/check-for-installed-packages-before-running-install-packages
@@ -21,7 +19,7 @@ pkgTest <- function(x)
   }
 ```
 
-```{r}
+```{r, echo= FALSE, cache=TRUE, include= FALSE}
 # Load any necessary packages here
 pkgTest("tidyr")
 pkgTest("dplyr")
@@ -41,23 +39,24 @@ library(leaps)
 library(MASS)
 ```
 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 set.seed(20190908)
 ```
 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 # read in birth data with NAs
 o_data = read.csv("data/Yr1116Birth.csv", na.strings=c("9","99", "9999"))
+
 ```
 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 # Helper functions
 mean_sd_txt = function(x, digits = 0) {
   paste0(round(mean(x), digits = digits), "±", round(sd(x), digits = digits))
 }
 ```
 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 # remove missing rows
 birth_data = na.omit(o_data)
 
@@ -138,7 +137,7 @@ glimpse(birth_data)
 
 ## Exploratory Analysis
 [analysis: unnatural gestational time(80 weeks) found in the plot -> record error -> remove data point; MORE analysis based on the plots]
-```{r}
+```{r, cache=TRUE, echo= FALSE}
 ggplot(birth_data, aes(GEST, BWTG)) +
   geom_point(aes(col=SMOKER), size=1, shape=2) +
   facet_wrap(~SMOKER, labeller = labeller(SMOKER=c("TRUE"="smoker", "FALSE"="non-smoker"))) +
@@ -161,14 +160,14 @@ A normal pregnancy ranges from 38 to 42 weeks. (Source: https://medlineplus.gov/
 
 We note a gestational age nearly double that time at 80. We will remove the entry with that value since we consider it a clerical error.
 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 # remove the data point with more than 80 weeks gestational age 
 birth_data = birth_data %>% filter(GEST < 50)
 ```
 
 Next we can examine the data to determine if there any temporal changes of merit. That is, do we see a difference in any of the covariates as we vary year of birth?
 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 birth_data %>% group_by(YOB) %>% summarize(
   GEST = mean_sd_txt(GEST, 1),
   BWTG = mean_sd_txt(BWTG, 1),
@@ -191,14 +190,14 @@ Note that when inspecting the mean and variance covariates by year of birth, the
 
 This is a full model using binarized smoking and parity covariates courtesy of Naya.
 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 fullmodel_naya = lm(BWTG~SEX + CORES + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + MRACER + MHISP + PARITYBIN, data=birth_data)
 summary(fullmodel_naya)
 fullmodel_naya = broom::tidy(fullmodel_naya)
 ```
 Since full model has too many variables, we drop the variables with p-values larger than a threshold value as the first step. We set the threshold value to 0.01 here.
 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 # select variables with p-value below a threshold value
 pthreshold = 0.01
 used_index = which(fullmodel_naya$p.value[-1] < pthreshold)
@@ -240,28 +239,35 @@ model2_naya = lm(BWTG ~ ., data = used_data)
 summary(model2_naya)
 ```
 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 step(model2_naya, direction = "backward")
 ```
 
 The function regsubsets in leaps package select the subset of variables of fixed size by comparing $R^2$ for all combinations of variables. 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 regfit_backward <- leaps::regsubsets(BWTG ~ ., data = used_data, 
                               method="backward")
 summary(regfit_backward)
 ```
 
 The function regsubsets chooses GEST, MRACER1, CIGLN1, PLUR, MAGE, CIGFN1, MRACER3, CORES26 as the eight most significant variables(from the most significant to least significant). Based on the exploratory work done by regsubsets, we will use these variables as predictors for now.
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 used_vars = c("GEST", "MRACER1", "CIGLNBIN1", "PLUR", "MAGE", "CIGFNBIN1", "MRACER3", "CORES26")
 used_data = get.used.data(used_vars)
-olsmodel <- lm(BWTG ~ GEST+MRACER+CIGLN+PLUR+MAGE+CIGFN+CORES, data = used_data)
-summary(olsmodel)
+finalmodel <- lm(BWTG ~ GEST+MRACER+CIGLNBIN+PLUR+MAGE+CIGFNBIN+CORES, data = used_data)
+summary(finalmodel)
 ```
+## Interpretation of OLS Model
+
+The baseline infant for this regression model was born to a non-smoking mother, has a listed race of "other non-White", had a non-plural birth, and was born outside of Cumberland county. If we assume this child had a gestation of 40 weeks and a mother aged 26 years, we could expect this child to weight 3,792.4 grams. 
+
+Assuming all else is held constant:
+
+For every one week increase in gestation, we can expect birth weight to increase by 175.0 grams on average. If the mother smoked during the infant's last trimester, we can expect the infant's birthweight to decrease 137.1 grams on average. For every additional baby born during the birth (in cases of plurality, such as twins and triplets), we can expect the baby's birth weight to decrease by 340.6 grams on average. For every one year increase in the mother's age, we can expect the baby's birth weight to increase 7.9 grams. If the mother smoked during the first three months of the pregnancy, we can expect birthweight to decrease -84.53 grams on average. If the child is born in Cumberland, it will be born 21.0 grams heavier than if it had been born outside of Cumberland, on average. If the child is white, we can expect its weight to be 139.5 grams heavier than an "other (non-White)" baby on average, and if the child is American Indian or Alaskan, we can expect its weight to be 71.07 grams heavier than an "other (non-White)" baby on average. 
 
 # Model Validation
 [analyze the plot and state the fact that data are contaminated with outliers or influential observations]
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 # Diagonostic plots examining residuals, fitted values, Cook’s distance, and leverage
 par(mfrow=c(2,2))
 plot(finalmodel)
@@ -269,15 +275,105 @@ plot(finalmodel)
 
 # Refit the model with robust regression
 We observed points of high leverage and influence from the plots. We have decided that these data points are not data entry errors, neither they are from a different population than most of our data. So we have no compelling reason to exclude them from the analysis. Robust regression might be a good strategy since it is a compromise between excluding these points entirely from the analysis and including all the data points and treating all them equally in OLS regression. The idea of robust regression is to weigh the observations differently based on how well behaved these observations are. Roughly speaking, it is a form of weighted and reweighted least squares regression.
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 robustmodel <- rlm(BWTG ~ GEST+MRACER+CIGLNBIN+PLUR+MAGE+CIGFNBIN+CORES, data = used_data)
 summary(robustmodel)
 ```
 
+
+##Interpretation of Robust Regression 
+
+The baseline infant for this regression model was born to a non-smoking mother, has a listed race of "other non-White", had a non-plural birth, and was born outside of Cumberland county. If we assume this child had a gestation of 40 weeks and a mother aged 26 years, we could expect this child to weight 3,767.4 grams. 
+
+Assuming all else is held constant:
+
+For every one week increase in gestation, we can expect birth weight to increase by 177.96 grams on average. If the mother smoked during the infant's last trimester, we can expect the infant's birthweight to decrease 135.7 grams on average. For every additional baby born during the birth (in cases of plurality, such as twins and triplets), we can expect the baby's birth weight to decrease by 323.25 grams on average. For every one year increase in the mother's age, we can expect the baby's birth weight to increase 7.73 grams. If the mother smoked during the first three months of the pregnancy, we can expect birthweight to decrease -83.98 grams on average. If the child is born in Cumberland, it will be born 21.76 grams heavier than if it had been born outside of Culpepper, on average. If the child is white, we can expect its weight to be 141.45 grams heavier than an "other (non-White)" baby on average, and if the child is American Indian or Alaskan, we can expect its weight to be 86.04 grams heavier than an "other (non-White)" baby on average. 
+
+
 [It seems the result from robust regression does not differ too much from the result from OLS regression. What does that mean?]
 
 
+
+
 ### Modeling v2
+
+```{r, echo=FALSE, cache=TRUE}
+# remove missing rows
+birth_data = na.omit(o_data)
+
+# convert to categorical variables
+# SEX, CORES(residence), MRACER(race), MHISP(Hispanic origin)
+birth_data = birth_data %>% mutate(
+  YOB = as.factor(YOB),
+  SEX = as.factor(SEX),
+  CORES = as.factor(CORES),
+  MRACER = as.factor(MRACER),
+  MHISP = as.factor(MHISP),
+)
+
+# function to convert numeric values to two-level categorical variables
+# based on threshold
+transform = function(data, cols, threshold) {
+  for (i in 1:length(cols)) {
+    col = cols[i]
+    data[paste0(col, 'BIN')] = as.factor(
+      case_when(
+        data[col] <= threshold ~ 0,
+        data[col] > threshold ~ 1,
+      )
+    )
+  }
+  return(data)
+}
+
+# convert average #cig to categorical: smoke or not smoke
+birth_data = transform(birth_data, c("CIGPN", "CIGFN", "CIGSN", "CIGLN"), 0)
+# convert #pregancy to categorical: pregnant before or never
+birth_data = transform(birth_data, c("PARITY"), 1)
+
+birth_data$SMOKER = (as.numeric(birth_data$CIGPNBIN) - 1) | # Before pregnancy
+  (as.numeric(birth_data$CIGPNBIN) - 1) | # First trimester
+  (as.numeric(birth_data$CIGPNBIN) - 1) | # Second trimester
+  (as.numeric(birth_data$CIGPNBIN) - 1)   # Last trimester
+
+# Combine all low frequency groups to other
+birth_data$RACE = as.character(birth_data$MRACER)
+birth_data$RACE[birth_data$RACE == "0"] = "O"
+birth_data$RACE[birth_data$RACE == "1"] = "W"
+birth_data$RACE[birth_data$RACE == "2"] = "B"
+birth_data$RACE[birth_data$RACE == 3] = "O" # Native americans -> other
+birth_data$RACE[birth_data$RACE == 4] = "A"
+birth_data$RACE[birth_data$RACE == 5] = "A"
+birth_data$RACE[birth_data$RACE == 6] = "A"
+birth_data$RACE[birth_data$RACE == 7] = "A"
+birth_data$RACE[birth_data$RACE == 8] = "A"
+birth_data$RACE = as.factor(birth_data$RACE)
+birth_data$RACE = relevel(birth_data$RACE, ref="W")
+
+# 0 - Other non-White
+# 1 - White
+# 2 - Black or African American
+# 3 - American Indian or Alaska Native
+# 4 - Chinese
+# 5 - Japanese
+# 6 - Native Hawaiian
+# 7 - Filipino
+# 8 - Other Asian
+
+# Separate hispanic and nonhispanic
+birth_data$HISP = as.character(birth_data$MHISP)
+birth_data$HISP[birth_data$HISP == "C"] = "Y"
+birth_data$HISP[birth_data$HISP == "M"] = "Y"
+birth_data$HISP[birth_data$HISP == "N"] = "N"
+birth_data$HISP[birth_data$HISP == "O"] = "Y"
+birth_data$HISP[birth_data$HISP == "P"] = "Y"
+birth_data$HISP[birth_data$HISP == "S"] = "Y"
+birth_data$HISP[birth_data$HISP == "U"] = "Y"
+birth_data$HISP = birth_data$HISP == "Y"
+
+glimpse(birth_data)
+```
+
 
 Faraz: First of all, Naya has done an incredible amount of work so far. She's really gone the extra mile here. I just want to point out that I don't think it's a good idea to drop covariates using regsubsets or p-values alone.
 
@@ -299,7 +395,7 @@ A few decisions in this regard:
 7. There's some amount of curvature in MAGE. Would be worth using a squared term.
 
 
-```{r}
+```{r, echo=FALSE, cache=TRUE}
 inspect_covariate = function(covariate) {
   df = birth_data %>% group_by(!!covariate) %>% summarise(weight = mean(BWTG), se = sd(BWTG))
   ggplot(df, aes_string(x=quo_name(covariate), y='weight')) +
@@ -321,14 +417,31 @@ inspect_covariate(quo(CIGSN))
 inspect_covariate(quo(CIGLN))
 
 ```
-```{r}
-model = lm(BWTG ~ SEX + CIGPN + CIGFN + CIG + GEST + PLUR + MAGE^2 + MRACER + HISP, data = birth_data)
+
+
+```{r, echo=FALSE, cache=TRUE}
+model = lm(BWTG ~ SEX + CIGPN + CIGFN  + CIGLN+ GEST + PLUR + MAGE^2 + MRACER + HISP, data = birth_data) #baseline is white non smoking mother male 
 summary(model)
 ```
 
-```{r}
+## Interpretation of OLS Model
+
+The baseline infant for this model is male, born to a non-smoking mother, was in a non-plural birth, non-hispanic, and has a listed race of "other (non_White)." Assuming that this infant had a gestation period of 40 weeks and a mother aged 26, we would expect him to have a birth weight of 3,938.18 grams.
+
+Assuming all else is held constant:
+
+If the infant is female, on average the expected weight of the infant would decrease by 124.5 grams. If the mother smoked in the three months prior to pregnancy, on average the expected weight of the infant would decrease by 1.95 grams. If the mother smoked in the first trimester of pregnancy, on average the expected weight of the infant would decrease by 4.67 grams. If the mother smoked in the last trimester of pregnancy, on average the expected weight of the infant would decrease by 10.47 grams. For every one week increase in gestation, on average the expected weight of the infant would increase by 174.8 grams. For every additonal child born during the birth, on average the expected weight of the infant would decrease by 335.4 grams. If the infant is white, on average the expected weight of the infant would increase by 46.4 grams. If the infant is black or African American, on average the expected weight of the infant would decrease by 124.2 grams. If the infant is American Indian or Alaska Native, on average the expected weight of the infant would decrease by 33.3 grams.If the infant is Chinese, on average the expected weight of the infant would decrease by 82.79 grams.
+If the infant is Japanese, on average the expected weight of the infant would decrease by 155.9 grams. If the infant is Native Hawaiian, on average the expected weight of the infant would decrease by 17.83 grams. If the infant is Filipino, on average the expected weight of the infant would decrease by 60 grams. If the infant is Other Asian, on average the expected weight of the infant would decrease by 143.3 grams. If the infant is Hispanic, on average the expected weight of the infant would decrease by 13.85 grams.
+
+```{r, echo=FALSE, cache=TRUE}
 model = rlm(BWTG ~ SEX + SMOKER + GEST + PLUR + MAGE^2 + RACE + HISP + PARITYBIN, data = birth_data)
 summary(model)
 ```
 
+## Interpretation of Robust Regression
 
+The baseline infant for this model is a white male, born to a non-smoking mother, was in a non-plural birth, non-hispanic, and was the first child born to his mother. Assuming that this infant had a gestation period of 40 weeks and a mother aged 26, we would expect him to have a birth weight of 4,038.65 grams.
+
+Assuming all else is held constant:
+
+If the infant is female, on average the expected weight of the infant would decrease by 125.45 grams. If the mother is a smoker, on average the expected weight of the infant would decrease by 146.91 grams. For every one week increase in gestation, on average the expected weight of the infant would increase by 178.86 grams. For every additonal child born during the birth, on average the expected weight of the infant would decrease by 319.4 grams. If the infant is Asian, on average the expected weight of the infant would decrease by 172.75 grams. If the infant is black or African American, on average the expected weight of the infant would decrease by 178.19 grams.If the infant is Other, on average the expected weight of the infant would decrease by 69.02 grams. If the infant is Hispanic, on average the expected weight of the infant would decrease by 13.99 grams. If the infant is not his mother's first born, on average the expected weight of the infant would  increase by 100.22 grams.
