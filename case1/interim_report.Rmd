@@ -166,16 +166,27 @@ regfit_backward <- leaps::regsubsets(BWTG ~ ., data = used_data,
 summary(regfit_backward)
 ```
 
-The function regsubsets chooses GEST, MRACER1, CIGLN1, PLUR, MAGE, CIGFN1, MRACER3, CORES26 as the eight most significant variables(from the most significant to least significant). Based on the exploratory work done by regsubsets, we will use these variables as the predictors for now.
+The function regsubsets chooses GEST, MRACER1, CIGLN1, PLUR, MAGE, CIGFN1, MRACER3, CORES26 as the eight most significant variables(from the most significant to least significant). Based on the exploratory work done by regsubsets, we will use these variables as predictors for now.
 ```{r}
 used_vars = c("GEST", "MRACER1", "CIGLN1", "PLUR", "MAGE", "CIGFN1", "MRACER3", "CORES26")
 used_data = get.used.data(used_vars)
-finalmodel <- lm(BWTG ~ GEST+MRACER+CIGLN+PLUR+MAGE+CIGFN+CORES, data = used_data)
-summary(finalmodel)
+olsmodel <- lm(BWTG ~ GEST+MRACER+CIGLN+PLUR+MAGE+CIGFN+CORES, data = used_data)
+summary(olsmodel)
 ```
 
+# Model Validation
+[analyze the plot and state the fact that data are contaminated with outliers or influential observations]
 ```{r}
+# Diagonostic plots examining residuals, fitted values, Cook’s distance, and leverage
 par(mfrow=c(2,2))
 plot(finalmodel)
 ```
 
+# Refit the model with robust regression
+We observed points of high leverage and influence from the plots. We have decided that these data points are not data entry errors, neither they are from a different population than most of our data. So we have no compelling reason to exclude them from the analysis. Robust regression might be a good strategy since it is a compromise between excluding these points entirely from the analysis and including all the data points and treating all them equally in OLS regression. The idea of robust regression is to weigh the observations differently based on how well behaved these observations are. Roughly speaking, it is a form of weighted and reweighted least squares regression.
+```{r}
+robustmodel <- rlm(BWTG ~ GEST+MRACER+CIGLN+PLUR+MAGE+CIGFN+CORES, data = used_data)
+summary(robustmodel)
+```
+
+[It seems the result from robust regression does not differ too much from the result from OLS regression. What does that mean?]
