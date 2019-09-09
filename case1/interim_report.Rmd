@@ -42,8 +42,19 @@ library(MASS)
 ```
 
 ```{r}
+set.seed(20190908)
+```
+
+```{r}
 # read in birth data with NAs
 o_data = read.csv("data/Yr1116Birth.csv", na.strings=c("9","99", "9999"))
+```
+
+```{r}
+# Helper functions
+mean_sd_txt = function(x, digits = 0) {
+  paste0(round(mean(x), digits = digits), "±", round(sd(x), digits = digits))
+}
 ```
 
 ```{r}
@@ -65,7 +76,7 @@ birth_data = birth_data %>% mutate(
 transform = function(data, cols, threshold) {
   for (i in 1:length(cols)) {
     col = cols[i]
-    data[col] = as.factor(
+    data[paste0(col, 'BIN')] = as.factor(
       case_when(
         data[col] <= threshold ~ 0,
         data[col] > threshold ~ 1,
@@ -79,45 +90,119 @@ transform = function(data, cols, threshold) {
 birth_data = transform(birth_data, c("CIGPN", "CIGFN", "CIGSN", "CIGLN"), 0)
 # convert #pregancy to categorical: pregnant before or never
 birth_data = transform(birth_data, c("PARITY"), 1)
+
+birth_data$SMOKER = (as.numeric(birth_data$CIGPNBIN) - 1) | # Before pregnancy
+  (as.numeric(birth_data$CIGPNBIN) - 1) | # First trimester
+  (as.numeric(birth_data$CIGPNBIN) - 1) | # Second trimester
+  (as.numeric(birth_data$CIGPNBIN) - 1)   # Last trimester
+
+# Combine all low frequency groups to other
+birth_data$RACE = as.character(birth_data$MRACER)
+birth_data$RACE[birth_data$RACE == "0"] = "O"
+birth_data$RACE[birth_data$RACE == "1"] = "W"
+birth_data$RACE[birth_data$RACE == "2"] = "B"
+birth_data$RACE[birth_data$RACE == 3] = "O" # Native americans -> other
+birth_data$RACE[birth_data$RACE == 4] = "A"
+birth_data$RACE[birth_data$RACE == 5] = "A"
+birth_data$RACE[birth_data$RACE == 6] = "A"
+birth_data$RACE[birth_data$RACE == 7] = "A"
+birth_data$RACE[birth_data$RACE == 8] = "A"
+birth_data$RACE = as.factor(birth_data$RACE)
+birth_data$RACE = relevel(birth_data$RACE, ref="W")
+
+# 0 - Other non-White
+# 1 - White
+# 2 - Black or African American
+# 3 - American Indian or Alaska Native
+# 4 - Chinese
+# 5 - Japanese
+# 6 - Native Hawaiian
+# 7 - Filipino
+# 8 - Other Asian
+
+# Separate hispanic and nonhispanic
+birth_data$HISP = as.character(birth_data$MHISP)
+birth_data$HISP[birth_data$HISP == "C"] = "Y"
+birth_data$HISP[birth_data$HISP == "M"] = "Y"
+birth_data$HISP[birth_data$HISP == "N"] = "N"
+birth_data$HISP[birth_data$HISP == "O"] = "Y"
+birth_data$HISP[birth_data$HISP == "P"] = "Y"
+birth_data$HISP[birth_data$HISP == "S"] = "Y"
+birth_data$HISP[birth_data$HISP == "U"] = "Y"
+birth_data$HISP = birth_data$HISP == "Y"
+
 glimpse(birth_data)
 ```
+
 
 
 ## Exploratory Analysis
 [analysis: unnatural gestational time(80 weeks) found in the plot -> record error -> remove data point; MORE analysis based on the plots]
 ```{r}
 ggplot(birth_data, aes(GEST, BWTG)) +
-  geom_point(aes(col=CIGPN), size=1, shape=2) +
-  facet_wrap(~CIGPN, labeller = labeller(CIGPN=c("1"="smoke", "0"="not smoke"))) +
+  geom_point(aes(col=SMOKER), size=1, shape=2) +
+  facet_wrap(~SMOKER, labeller = labeller(SMOKER=c("TRUE"="smoker", "FALSE"="non-smoker"))) +
   ggtitle("Birth Weight vs. Gestation Time for Non-smokers and Smokers")
 
 ggplot(birth_data, aes(x=BWTG)) +
-  geom_histogram(aes(y = ..density.., fill=CIGPN), color="grey", alpha=0.7) +
+  geom_histogram(aes(y = ..density.., fill=SMOKER), color="grey", alpha=0.7) +
   stat_function(fun = dnorm, args = list(mean = mean(birth_data$BWTG), sd = sd(birth_data$BWTG))) +
   geom_vline(xintercept = mean(birth_data$BWTG), linetype="dashed") +
-  facet_wrap(~CIGPN, labeller = labeller(CIGPN=c("1"="smoke", "0"="not smoke"))) +
+  facet_wrap(~SMOKER, labeller = labeller(
+    SMOKER = c(
+      "TRUE"=paste("Smoker ", mean_sd_txt((birth_data %>% filter(SMOKER == TRUE))$BWTG)),
+      "FALSE"=paste("Non-smoker", mean_sd_txt((birth_data %>% filter(SMOKER == FALSE))$BWTG))))) +
   ggtitle("Birth Weight Distribution for Non-smokers and Smokers")
 ```
 
-# Clean data
+## Data Cleaning and Modifications
+
+A normal pregnancy ranges from 38 to 42 weeks. (Source: https://medlineplus.gov/ency/article/002367.htm)
+
+We note a gestational age nearly double that time at 80. We will remove the entry with that value since we consider it a clerical error.
+
 ```{r}
 # remove the data point with more than 80 weeks gestational age 
 birth_data = birth_data %>% filter(GEST < 50)
 ```
 
-### Modeling
+Next we can examine the data to determine if there any temporal changes of merit. That is, do we see a difference in any of the covariates as we vary year of birth?
 
 ```{r}
-fullmodel = lm(BWTG~., data=birth_data)
-fullmodel = broom::tidy(fullmodel)
+birth_data %>% group_by(YOB) %>% summarize(
+  GEST = mean_sd_txt(GEST, 1),
+  BWTG = mean_sd_txt(BWTG, 1),
+  SMOKER = round(mean(SMOKER == TRUE), 2),
+  SEX = round(mean(SEX == 1), 2),
+  MAGE = mean_sd_txt(MAGE, 1),
+  PLUR = mean_sd_txt(PLUR, 1),
+  PARITY = mean_sd_txt(PARITY, 1),
+  MRACER0 = round(mean(MRACER == 0), 3),
+  MRACER1 = round(mean(MRACER == 1), 3),
+  MRACER2 = round(mean(MRACER == 2), 3),
+  MRACER3 = round(mean(MRACER == 3), 3),
+  MRACER4 = round(mean(MRACER == 4), 3),
+)
 ```
 
+Note that when inspecting the mean and variance covariates by year of birth, the values remain relatively stable aside from smoker status which decreases slightly by a few percentage points. This suggests that the percentage of the population that smokes is dropping over time across the other covariates.  As such, we believe that there is not a significant time-related trend and that year of birth is not a covariate of interest.
+
+### Modeling
+
+This is a full model using binarized smoking and parity covariates courtesy of Naya.
+
+```{r}
+fullmodel_naya = lm(BWTG~SEX + CORES + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + MRACER + MHISP + PARITYBIN, data=birth_data)
+summary(fullmodel_naya)
+fullmodel_naya = broom::tidy(fullmodel_naya)
+```
 Since full model has too many variables, we drop the variables with p-values larger than a threshold value as the first step. We set the threshold value to 0.01 here.
+
 ```{r}
 # select variables with p-value below a threshold value
 pthreshold = 0.01
-used_index = which(fullmodel$p.value[-1] < pthreshold)
-used_vars = fullmodel$term[used_index]
+used_index = which(fullmodel_naya$p.value[-1] < pthreshold)
+used_vars = fullmodel_naya$term[used_index]
 
 get.used.data =  function(used_vars) {
     levels_map = list()
@@ -151,12 +236,12 @@ get.used.data =  function(used_vars) {
 }
 
 used_data = get.used.data(used_vars)
-model2 = lm(BWTG ~ ., data = used_data)
-summary(model2)
+model2_naya = lm(BWTG ~ ., data = used_data)
+summary(model2_naya)
 ```
 
 ```{r}
-step(model2, direction = "backward")
+step(model2_naya, direction = "backward")
 ```
 
 The function regsubsets in leaps package select the subset of variables of fixed size by comparing $R^2$ for all combinations of variables. 
@@ -168,7 +253,7 @@ summary(regfit_backward)
 
 The function regsubsets chooses GEST, MRACER1, CIGLN1, PLUR, MAGE, CIGFN1, MRACER3, CORES26 as the eight most significant variables(from the most significant to least significant). Based on the exploratory work done by regsubsets, we will use these variables as predictors for now.
 ```{r}
-used_vars = c("GEST", "MRACER1", "CIGLN1", "PLUR", "MAGE", "CIGFN1", "MRACER3", "CORES26")
+used_vars = c("GEST", "MRACER1", "CIGLNBIN1", "PLUR", "MAGE", "CIGFNBIN1", "MRACER3", "CORES26")
 used_data = get.used.data(used_vars)
 olsmodel <- lm(BWTG ~ GEST+MRACER+CIGLN+PLUR+MAGE+CIGFN+CORES, data = used_data)
 summary(olsmodel)
@@ -185,8 +270,65 @@ plot(finalmodel)
 # Refit the model with robust regression
 We observed points of high leverage and influence from the plots. We have decided that these data points are not data entry errors, neither they are from a different population than most of our data. So we have no compelling reason to exclude them from the analysis. Robust regression might be a good strategy since it is a compromise between excluding these points entirely from the analysis and including all the data points and treating all them equally in OLS regression. The idea of robust regression is to weigh the observations differently based on how well behaved these observations are. Roughly speaking, it is a form of weighted and reweighted least squares regression.
 ```{r}
-robustmodel <- rlm(BWTG ~ GEST+MRACER+CIGLN+PLUR+MAGE+CIGFN+CORES, data = used_data)
+robustmodel <- rlm(BWTG ~ GEST+MRACER+CIGLNBIN+PLUR+MAGE+CIGFNBIN+CORES, data = used_data)
 summary(robustmodel)
 ```
 
 [It seems the result from robust regression does not differ too much from the result from OLS regression. What does that mean?]
+
+
+### Modeling v2
+
+Faraz: First of all, Naya has done an incredible amount of work so far. She's really gone the extra mile here. I just want to point out that I don't think it's a good idea to drop covariates using regsubsets or p-values alone.
+
+Consider that the method above eliminates categorical covariates indiscriminately. Unless I'm misunderstanding, entire race categories are dropped during the selection process. Also, using p-values specifically as a determinant feels like p-hacking.
+
+I took a step back and added a few points of analysis that are useful.
+
+1. We can easily eliminate YOB by looking at the covariate averages as done above.
+2. We can repackage and eliminate certain variables to maximize for interpretability of the model.
+
+A few decisions in this regard:
+
+1. Group all the smoking and nonsmokers into a single variable, since that's the question of interest. (SMOKER variable)
+2. Ignore county. While a good proxy for socioeconomic status, information about county alone does not generalize well to the broader population and it makes interpretation cumbersome. (Do you really want to interpret the covariates on county by county basis?)
+3. Turn MHISP into TRUE/FALSE HISP
+4. Group together all of the "asian" race categories: https://academic.oup.com/ije/article/33/1/107/668109, we'll have white, black, asian. See the RACE categorical variable added at the top.
+5. Since we're interested in the effect of smoking on gestational weight, let's ignore twins/triplets/etc. There's a very strong relationship here, and it's worth excluding it from the data set unless we want to report on some interaction.
+6. Parity seems very flat, so it's probabily not very informative. Let's exlcude it as well. It wouldn't really make sense to have a covariate that says 
+7. There's some amount of curvature in MAGE. Would be worth using a squared term.
+
+
+```{r}
+inspect_covariate = function(covariate) {
+  df = birth_data %>% group_by(!!covariate) %>% summarise(weight = mean(BWTG), se = sd(BWTG))
+  ggplot(df, aes_string(x=quo_name(covariate), y='weight')) +
+    geom_errorbar(aes(ymin=weight-se, ymax=weight+se), width=.1) +
+    geom_line() +
+    geom_point()
+}
+
+inspect_covariate(quo(PARITY))
+inspect_covariate(quo(MAGE))
+inspect_covariate(quo(RACE))
+inspect_covariate(quo(HISP))
+inspect_covariate(quo(MAGE))
+inspect_covariate(quo(PLUR))
+inspect_covariate(quo(SMOKER))
+inspect_covariate(quo(CIGPN))
+inspect_covariate(quo(CIGFN))
+inspect_covariate(quo(CIGSN))
+inspect_covariate(quo(CIGLN))
+
+```
+```{r}
+model = lm(BWTG ~ SEX + CIGPN + CIGFN + CIG + GEST + PLUR + MAGE^2 + MRACER + HISP, data = birth_data)
+summary(model)
+```
+
+```{r}
+model = rlm(BWTG ~ SEX + SMOKER + GEST + PLUR + MAGE^2 + RACE + HISP + PARITYBIN, data = birth_data)
+summary(model)
+```
+
+
