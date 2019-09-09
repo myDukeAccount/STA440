@@ -295,7 +295,7 @@ For every one week increase in gestation, we can expect birth weight to increase
 
 
 
-### Modeling v2
+# Modeling: Faraz
 
 ```{r, echo=FALSE, cache=TRUE}
 # remove missing rows
@@ -375,25 +375,15 @@ glimpse(birth_data)
 ```
 
 
-Faraz: First of all, Naya has done an incredible amount of work so far. She's really gone the extra mile here. I just want to point out that I don't think it's a good idea to drop covariates using regsubsets or p-values alone.
+## Exploratory Analysis and Covariate Selection
 
-Consider that the method above eliminates categorical covariates indiscriminately. Unless I'm misunderstanding, entire race categories are dropped during the selection process. Also, using p-values specifically as a determinant feels like p-hacking.
+When exploring the data, we noted an outlier with an unrealistic gestational age of above 80 weeks. This would translate to a 20 month pregnancy. Clearly, this is a clerical error, so we decided to remove the value.
 
-I took a step back and added a few points of analysis that are useful.
+Secondly, we noted that when inspecting the mean and variance covariates by year of birth, the values remained relatively stable aside from smoker status which decreases slightly by a few percentage points. This suggests that the percentage of the population that smokes is dropping over time across the other covariates.  As such, we believe that there is not a significant time-related trend and that year of birth is not a covariate of interest. For the hispanic coviariate, we combined all the covariates together into a single binary covariate. After investigation of the models with and without the hispanic covariate, we determined that the effects associated were not large or significant enough to warrant the covariates inclusion at the expense of interpretability.
 
-1. We can easily eliminate YOB by looking at the covariate averages as done above.
-2. We can repackage and eliminate certain variables to maximize for interpretability of the model.
+For smoking, we decided to combine all of the smoking covariates into a single covariate. This is after analyzing several different models to determine a trade off between interpretability and model fit.
 
-A few decisions in this regard:
-
-1. Group all the smoking and nonsmokers into a single variable, since that's the question of interest. (SMOKER variable)
-2. Ignore county. While a good proxy for socioeconomic status, information about county alone does not generalize well to the broader population and it makes interpretation cumbersome. (Do you really want to interpret the covariates on county by county basis?)
-3. Turn MHISP into TRUE/FALSE HISP
-4. Group together all of the "asian" race categories: https://academic.oup.com/ije/article/33/1/107/668109, we'll have white, black, asian. See the RACE categorical variable added at the top.
-5. Since we're interested in the effect of smoking on gestational weight, let's ignore twins/triplets/etc. There's a very strong relationship here, and it's worth excluding it from the data set unless we want to report on some interaction.
-6. Parity seems very flat, so it's probabily not very informative. Let's exlcude it as well. It wouldn't really make sense to have a covariate that says 
-7. There's some amount of curvature in MAGE. Would be worth using a squared term.
-
+When inspecting the different covariates we noted a few that had nonlinear trends and exhibited heteroskedasticity. Consider for example, gestational age or mother's age against weight:
 
 ```{r, echo=FALSE, cache=TRUE}
 inspect_covariate = function(covariate) {
@@ -404,44 +394,70 @@ inspect_covariate = function(covariate) {
     geom_point()
 }
 
-inspect_covariate(quo(PARITY))
 inspect_covariate(quo(MAGE))
-inspect_covariate(quo(RACE))
-inspect_covariate(quo(HISP))
-inspect_covariate(quo(MAGE))
-inspect_covariate(quo(PLUR))
-inspect_covariate(quo(SMOKER))
-inspect_covariate(quo(CIGPN))
-inspect_covariate(quo(CIGFN))
-inspect_covariate(quo(CIGSN))
-inspect_covariate(quo(CIGLN))
-
+inspect_covariate(quo(GEST))
 ```
 
+To account for this behavior, we could have subsetted the data to exclude outlier scenarios (e.g. preteen mothers, preterm births). Instead, we decided to keep the full data set until our final investigation.
+
+We decided against including the county of residence since it significantly complicated the models interpretation and we assumed that the race covariate would capture some amount of the socioeconomic information included in the county of residence coefficient. In addition, it was our opinion that the socioeconomic information information for each county (e.g. median county income) would have been a better indicator. Unfortunately, we did not have enough time to link the data to an outside data source.
+
+With respect to the race coviariates, we grouped together all of the categories into other, white, black, and asian. This grouping was based on a study published in the International Journal of Epidemiology entitled "Does gestation vary by ethnic group? A London-based study of over 122,000 pregnancies with spontaneous onset of labour" (https://academic.oup.com/ije/article/33/1/107/668109).
+
+We also transformed parity into a binary variable to aide interpretation at no expense to model fit.
+
+## Modeling
 
 ```{r, echo=FALSE, cache=TRUE}
-model = lm(BWTG ~ SEX + CIGPN + CIGFN  + CIGLN+ GEST + PLUR + MAGE^2 + MRACER + HISP, data = birth_data) #baseline is white non smoking mother male 
-summary(model)
+ols_fy = lm(BWTG ~ SEX + SMOKER + GEST + PLUR + MAGE^2 + RACE + PARITYBIN, data = birth_data) #baseline is white non smoking mother male
+summary(ols_fy)
 ```
 
 ## Interpretation of OLS Model
 
-The baseline infant for this model is male, born to a non-smoking mother, was in a non-plural birth, non-hispanic, and has a listed race of "other (non_White)." Assuming that this infant had a gestation period of 40 weeks and a mother aged 26, we would expect him to have a birth weight of 3,938.18 grams.
+The baseline infant for this model is a white male, born to a non-smoking mother, was in a non-plural birth, and was the first child born to his mother. Assuming that this infant had a gestation period of 40 weeks and a mother aged 26, we would expect him to have a birth weight of 3,605.13 grams.
 
 Assuming all else is held constant:
 
-If the infant is female, on average the expected weight of the infant would decrease by 124.5 grams. If the mother smoked in the three months prior to pregnancy, on average the expected weight of the infant would decrease by 1.95 grams. If the mother smoked in the first trimester of pregnancy, on average the expected weight of the infant would decrease by 4.67 grams. If the mother smoked in the last trimester of pregnancy, on average the expected weight of the infant would decrease by 10.47 grams. For every one week increase in gestation, on average the expected weight of the infant would increase by 174.8 grams. For every additonal child born during the birth, on average the expected weight of the infant would decrease by 335.4 grams. If the infant is white, on average the expected weight of the infant would increase by 46.4 grams. If the infant is black or African American, on average the expected weight of the infant would decrease by 124.2 grams. If the infant is American Indian or Alaska Native, on average the expected weight of the infant would decrease by 33.3 grams.If the infant is Chinese, on average the expected weight of the infant would decrease by 82.79 grams.
-If the infant is Japanese, on average the expected weight of the infant would decrease by 155.9 grams. If the infant is Native Hawaiian, on average the expected weight of the infant would decrease by 17.83 grams. If the infant is Filipino, on average the expected weight of the infant would decrease by 60 grams. If the infant is Other Asian, on average the expected weight of the infant would decrease by 143.3 grams. If the infant is Hispanic, on average the expected weight of the infant would decrease by 13.85 grams.
+If the infant is female, on average the expected weight of the infant would decrease by 120.97 grams.
+If the mother is a smoker, on average the expected weight of the infant would decrease by 146.93 grams.
+For every one week increase in gestation, on average the expected weight of the infant would increase by 178.86 grams.
+For every additonal child born during the birth, on average the expected weight of the infant would decrease by 343.42 grams.
+If the infant is asian, on average the expected weight of the infant would decrease by 175.2 grams.
+If the infant is black or African American, on average the expected weight of the infant would decrease by 188.16 grams.
+If the infant is other, on average the expected weight of the infant would decrease by 83.2 grams.
+If the infant is not his mother's first born, on average the expected weight of the infant would increase by 97.57 grams.
 
 ```{r, echo=FALSE, cache=TRUE}
-model = rlm(BWTG ~ SEX + SMOKER + GEST + PLUR + MAGE^2 + RACE + HISP + PARITYBIN, data = birth_data)
-summary(model)
+robust_fy = rlm(BWTG ~ SEX + SMOKER + GEST + PLUR + MAGE^2 + RACE + HISP + PARITYBIN, data = birth_data)
+summary(robust_fy)
 ```
 
 ## Interpretation of Robust Regression
 
-The baseline infant for this model is a white male, born to a non-smoking mother, was in a non-plural birth, non-hispanic, and was the first child born to his mother. Assuming that this infant had a gestation period of 40 weeks and a mother aged 26, we would expect him to have a birth weight of 4,038.65 grams.
+The baseline infant for this model is a white male, born to a non-smoking mother, was in a non-plural birth, and was the first child born to his mother. Assuming that this infant had a gestation period of 40 weeks and a mother aged 26, we would expect him to have a birth weight of 3,600.16 grams.
 
 Assuming all else is held constant:
 
-If the infant is female, on average the expected weight of the infant would decrease by 125.45 grams. If the mother is a smoker, on average the expected weight of the infant would decrease by 146.91 grams. For every one week increase in gestation, on average the expected weight of the infant would increase by 178.86 grams. For every additonal child born during the birth, on average the expected weight of the infant would decrease by 319.4 grams. If the infant is Asian, on average the expected weight of the infant would decrease by 172.75 grams. If the infant is black or African American, on average the expected weight of the infant would decrease by 178.19 grams.If the infant is Other, on average the expected weight of the infant would decrease by 69.02 grams. If the infant is Hispanic, on average the expected weight of the infant would decrease by 13.99 grams. If the infant is not his mother's first born, on average the expected weight of the infant would  increase by 100.22 grams.
+If the infant is female, on average the expected weight of the infant would decrease by 121.57 grams.
+If the mother is a smoker, on average the expected weight of the infant would decrease by 146.51 grams.
+For every one week increase in gestation, on average the expected weight of the infant would increase by 178.61 grams.
+For every additonal child born during the birth, on average the expected weight of the infant would decrease by 325.35 grams.
+If the infant is asian, on average the expected weight of the infant would decrease by 165.61 grams.
+If the infant is black or African American, on average the expected weight of the infant would decrease by 187.74 grams.
+If the infant is other, on average the expected weight of the infant would decrease by 76.38 grams.
+If the infant is not his mother's first born, on average the expected weight of the infant would increase by 97.17 grams.
+
+## Model Comparison
+
+In analyzing the two models, there seems to be significant issues with heteroskedasticity. As expected, there is a lower residual error with  robust regression.
+
+```{r}
+par(mfrow=c(2,2))
+plot(ols_fy, las=1)
+mtext("OLS Model", outer = TRUE, cex = 1.5)
+
+par(mfrow=c(2,2))
+plot(robust_fy, las=1)
+mtext("Robust Model", outer = TRUE, cex = 1.5)
+```
