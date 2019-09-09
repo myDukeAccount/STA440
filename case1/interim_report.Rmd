@@ -27,10 +27,18 @@ pkgTest("tidyr")
 pkgTest("dplyr")
 pkgTest("purrr")
 pkgTest("tidyverse")
+pkgTest("broom")
+pkgTest("hashmap")
+pkgTest("leaps")
+pkgTest("MASS")
 library(tidyr)
 library(dplyr)
 library(purrr)
 library(tidyverse)
+library(broom)
+library(hashmap)
+library(leaps)
+library(MASS)
 ```
 
 ```{r}
@@ -45,6 +53,7 @@ birth_data = na.omit(o_data)
 # convert to categorical variables
 # SEX, CORES(residence), MRACER(race), MHISP(Hispanic origin)
 birth_data = birth_data %>% mutate(
+  YOB = as.factor(YOB),
   SEX = as.factor(SEX),
   CORES = as.factor(CORES),
   MRACER = as.factor(MRACER),
@@ -100,12 +109,49 @@ birth_data = birth_data %>% filter(GEST < 50)
 
 ```{r}
 fullmodel = lm(BWTG~., data=birth_data)
-summary(fullmodel)
+fullmodel = broom::tidy(fullmodel)
 ```
 
+Since full model has too many variables, we drop the variables with p-values larger than a threshold value as the first step. We set the threshold value to 0.01 here.
 ```{r}
-#Full model is way to many variables, so now we will use backwards selection to select the variables that are most important to this model
-model2 = lm(BWTG ~ SEX+CIGPN+CIGFN+CIGSN+CIGLN+PARITY+GEST+YOB+PLUR, data = birth_data)
+# select variables with p-value below a threshold value
+pthreshold = 0.01
+used_index = which(fullmodel$p.value[-1] < pthreshold)
+used_vars = fullmodel$term[used_index]
+
+get.used.data =  function(used_vars) {
+    levels_map = list()
+    for (var in used_vars) {
+      level = str_extract(var, "[0-9]+")
+      if (!is.na(level)) {
+        original = sub("[0-9]+", "", var)
+        if (is.null(levels_map[[original]])) {
+          levels_map[[original]] = c()
+        }
+        levels_map[[original]] = c(levels_map[[original]], level)
+      }
+      if (!is.na(str_extract(var, "MHISP"))) {
+        if (is.null(levels_map[["MHISP"]])) {
+          levels_map[["MHISP"]] = c()
+        }
+        levels_map[["MHISP"]] = sub("MHISP([M|N|O|P|S|U])", "\\1", var)
+      }
+    }
+    original_vars = unique(sub("MHISP.*", "MHISP", sub("[0-9]+", "", used_vars)))
+    
+    used_data = birth_data[, which(names(birth_data) %in% c(original_vars, "BWTG"))]
+    for (colname in colnames(used_data)) {
+      # select levels with p-value larger than the threshold
+      if (is.factor(used_data[[colname]])) {
+        used_data[[colname]] = factor(used_data[[colname]], levels = c(levels(birth_data[[colname]])[1], levels_map[[colname]]))
+        used_data[[colname]][is.na(used_data[[colname]])] = levels(birth_data[[colname]])[1]
+      }
+    }
+    return(used_data)
+}
+
+used_data = get.used.data(used_vars)
+model2 = lm(BWTG ~ ., data = used_data)
 summary(model2)
 ```
 
@@ -113,19 +159,19 @@ summary(model2)
 step(model2, direction = "backward")
 ```
 
+The function regsubsets in leaps package select the subset of variables of fixed size by comparing $R^2$ for all combinations of variables. 
 ```{r}
-regfit_backward <- regsubsets(BWTG ~ SEX+CIGPN+CIGFN+CIGSN+CIGLN+PARITY+GEST+YOB+PLUR, data = birth_data, 
+regfit_backward <- leaps::regsubsets(BWTG ~ ., data = used_data, 
                               method="backward")
 summary(regfit_backward)
 ```
 
-
+The function regsubsets chooses GEST, MRACER1, CIGLN1, PLUR, MAGE, CIGFN1, MRACER3, CORES26 as the eight most significant variables(from the most significant to least significant). Based on the exploratory work done by regsubsets, we will use these variables as the predictors for now.
 ```{r}
-#All pretty simililar RSS, but since we want to narrow our model down to make it a little more meaningful, based on regsubsets backwards selection, the best 6 variables to chose are SEX, CIGFN, CIGLN, PARITY, GEST and PLUR, so these are what we will use to make our final model
-
-finalmodel <- lm(BWTG ~ SEX+CIGFN+CIGLN+PARITY+GEST+PLUR, data = birth_data)
+used_vars = c("GEST", "MRACER1", "CIGLN1", "PLUR", "MAGE", "CIGFN1", "MRACER3", "CORES26")
+used_data = get.used.data(used_vars)
+finalmodel <- lm(BWTG ~ GEST+MRACER+CIGLN+PLUR+MAGE+CIGFN+CORES, data = used_data)
 summary(finalmodel)
-
 ```
 
 ```{r}
