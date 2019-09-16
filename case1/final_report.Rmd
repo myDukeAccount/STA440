@@ -96,11 +96,11 @@ plot_correlation_matrix = function(data) {
 
   ggplot(data = melted_cormat, aes(Var2, Var1, fill = value))+
   geom_tile(color = "white") +
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
-   midpoint = 0, limit = c(-1,1), space = "Lab", 
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white",
+   midpoint = 0, limit = c(-1,1), space = "Lab",
    name="Pearson\nCorrelation") +
-  theme_minimal()+ 
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1,
     size = 12, hjust = 1))+
   theme(axis.title.x=element_blank()) +
   theme(axis.title.y=element_blank()) +
@@ -110,6 +110,26 @@ plot_correlation_matrix = function(data) {
 rmse = function(actual, predicted) {
   error = actual - predicted
   sqrt(mean(error^2))
+}
+
+G = 0
+
+quantile_errors = function(quantfit, train, test) {
+  errors = quantile(train$BWTG, quantfit$tau)
+  i = 0
+  BWTG_pred = predict(quantfit, test)
+  G <<- BWTG_pred
+  for (quantile in quantfit$tau) {
+    i = i + 1
+
+    BWTG_diff = test$BWTG - BWTG_pred[,i]
+    
+    errtotal = sum(abs(BWTG_diff[BWTG_diff >= 0]) * quantile) +
+               sum(abs(BWTG_diff[BWTG_diff < 0]) * (1 - quantile))
+    meanerr = errtotal / length(BWTG_diff)
+    errors[i] = meanerr
+  }
+  return(errors)
 }
 ```
 
@@ -178,27 +198,22 @@ birth_data$HISP = birth_data$HISP == "Y"
 
 ## Exploratory Analysis and Transformations
 
-A normal pregnancy ranges from 38 to 42 weeks. (Source: https://medlineplus.gov/ency/article/002367.htm)
-
-We note a gestational age nearly double that time at 80. We will remove the entry with that value since we consider it a clerical error.
-
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE, include=FALSE}
-# remove the data point with more than 80 weeks gestational age 
+# remove the data point with more than 80 weeks gestational age
 birth_data = birth_data %>% filter(GEST < 50)
 if (ARE_KNITTING) {
   birth_data_subset = birth_data
 } else {
-  birth_data_subset = birth_data[sample(nrow(birth_data), 100000),] # floor(nrow(birth_data) / 20)  
+  birth_data_subset = birth_data[sample(nrow(birth_data), 100000),] # floor(nrow(birth_data) / 20)
 }
 ```
-
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
 GEST_means = birth_data_subset %>% group_by(GEST) %>% summarise(weights = mean(BWTG), se = sd(BWTG)) %>% rename(BWTG = weights)
 
 p1 <- ggplot(birth_data_subset,  aes(GEST, BWTG)) +
       geom_point(alpha =0.05) +
-      geom_line(aes(GEST, BWTG), data = GEST_means, color = "red", alpha = 0.5) + 
+      geom_line(aes(GEST, BWTG), data = GEST_means, color = "red", alpha = 0.5) +
       geom_errorbar(data = GEST_means, aes(GEST, BWTG, ymin=BWTG - se, ymax=BWTG + se), width=0.1, color = "red", alpha = 0.5) +
       ggtitle("Birth Weight vs. Gestational Age")
 
@@ -206,7 +221,7 @@ MAGE_means = birth_data_subset %>% group_by(MAGE) %>% summarise(weights = mean(B
 
 p2 <- ggplot(birth_data_subset, aes(MAGE, BWTG)) +
       geom_point(alpha = 0.05) +
-      geom_line(aes(MAGE, BWTG), data = MAGE_means, color = "red", alpha = 0.5) + 
+      geom_line(aes(MAGE, BWTG), data = MAGE_means, color = "red", alpha = 0.5) +
       geom_errorbar(data = MAGE_means, aes(MAGE, BWTG, ymin=BWTG - se, ymax=BWTG + se), width=0.1, color = "red", alpha = 0.5) +
       ggtitle("Birth Weight vs. Maternal Age")
 
@@ -214,7 +229,7 @@ PARITY_means = birth_data_subset %>% group_by(PARITY) %>% summarise(weights = me
 
 p3 <- ggplot(birth_data_subset, aes(PARITY, BWTG)) +
       geom_point(alpha = 0.05) +
-      geom_line(aes(PARITY, BWTG), data = PARITY_means, color = "red", alpha = 0.5) + 
+      geom_line(aes(PARITY, BWTG), data = PARITY_means, color = "red", alpha = 0.5) +
       geom_errorbar(data = PARITY_means, aes(PARITY, BWTG, ymin=BWTG - se, ymax=BWTG + se), width=0.1, color = "red", alpha = 0.5) +
       ggtitle("Mean Weight by Parity")
 
@@ -231,19 +246,19 @@ p5 <- ggplot(birth_data_subset, aes(MRACER, BWTG)) +
 p6 <- ggplot(birth_data_subset, aes(MHISP, BWTG)) +
       geom_violin(aes(color = MHISP)) +
       stat_summary(fun.data=mean_sdl, mult=1, geom="pointrange") +
-      geom_hline(yintercept = mean(birth_data_subset$BWTG), color = "red", alpha = 0.5) + 
+      geom_hline(yintercept = mean(birth_data_subset$BWTG), color = "red", alpha = 0.5) +
       ggtitle("Birth Weight vs. Hispanic") + theme(legend.position = "none")
 
 p7 <- ggplot(birth_data_subset, aes(YOB, BWTG)) +
       geom_violin(aes(color = YOB)) +
       stat_summary(fun.data=mean_sdl, mult=1, geom="pointrange") +
       ggtitle("Birth Weight by Year") +
-      geom_hline(yintercept = mean(birth_data_subset$BWTG), color = "red", alpha = 0.5) + 
+      geom_hline(yintercept = mean(birth_data_subset$BWTG), color = "red", alpha = 0.5) +
       theme(legend.position = "none")
 
 p8 <- inspect_covariate_vs_bwgt(birth_data_subset, quote(CORES)) +
       theme(axis.text.x=element_blank()) +
-      geom_hline(yintercept = mean(birth_data_subset$BWTG), color = "red", alpha = 0.5) + 
+      geom_hline(yintercept = mean(birth_data_subset$BWTG), color = "red", alpha = 0.5) +
       ggtitle("Mean Weight by County") + theme(legend.position = "none")
 
 p9 <- inspect_covariate_vs_bwgt(birth_data_subset, quote(CIGPN)) +
@@ -263,45 +278,27 @@ p12 <- inspect_covariate_vs_bwgt(birth_data_subset, quote(CIGLN)) +
       ggtitle("Mean Weight by Smoke 3nd Tri") + theme(legend.position = "none")
 ```
 
-First we begin by inspecting the relationships between birth weight gestational age, maternal age, pairty, and plurality.
+A normal pregnancy ranges from 38 to 42 weeks. (Source: https://medlineplus.gov/ency/article/002367.htm) We noted a gestational age nearly double that time at 80. We removed the entry with that value since we considered it a clerical error. We then continued to inspect the relationships between birth weight gestational age, maternal age, pairty, and plurality.
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
 grid.arrange(p1, p2, p3, p4, ncol=2)
 ```
 
-We note that gestational age has a decent amount of curvature which might be helped with a quadratic term. This however would affect interpretability.
+We noted that gestational age has noticable curvature which might a quadratic term may help. This however would affect interpretability. Maternal age seems to have little effect outside of the tails (e.g. >45 years, <20 years). Introduction of a nonlinearity would appear helpful here. Parity seems to have a small effect. Plurality has a very pronounced effect.
 
-Maternal age seems to have little effect outside of the tails (e.g. greater than 45 years of age). Introduction of a nonlinearity would appear helpful here. Parity on birth weight seems to have a small effect. Plurality has a very pronounced effect.
-
-We now inspect the relationship of weight with race, hispanic status, year of birth and county.
+We then inspected the relationship of weight with race, hispanic status, year of birth and county.
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
 grid.arrange(p5, p6, p7, p8, ncol=2)
 ```
 
-Note the horizontal bar plotted is the average birthweight.
+The horizontal bar plotted is the average birthweight.
 
 Inspecting race, certain race covariates appear to deviate signficantly from the mean, suggesting that this is a covariate of interest. Reading trough the literature, it appears that in another study of gestational variation published in the International Journal of Epidemiology entitled "Does gestation vary by ethnic group? A London-based study of over 122,000 pregnancies with spontaneous onset of labour" (https://academic.oup.com/ije/article/33/1/107/668109) categorization of european, african, and asian ancestry suffices.
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
-race_freqs = data.frame(table(birth_data$MRACER)) %>% gather(MRACER, value, -Var1) %>% 
-    spread(Var1, value)
-knitr::kable(race_freqs)
-```
+With this as prior knowledge, we considered grouping together all racial categories of asian ancestry to simplify interpreation. Due to their small size, the granular subsets of hispanic ethnicity may not be informative: 85% reported as not hispanic. As such, we will consider a transformation to turn hispanic ethnicity into a binary covariate.
 
-With this as prior knowledge, we'll consider grouping together all of the racial categories of asian ancestry to simplify interpreation.
-
-Due to their small size, the granular subsets of hispanic ethnicity may not be very informative. Investigating the covariate directly, we note the majority reported as not hispanic.
-
-```{r echo=FALSE, cache=TRUE}
-hisp_freqs = data.frame(table(birth_data$MHISP)) %>% gather(MHISP, value, -Var1) %>% 
-    spread(Var1, value)
-knitr::kable(hisp_freqs)
-```
-
-As such, we will consider a transformation to turn hispanic ethnicity into a binary covariate.
-
-Certain counties appear to have significant deviation from the mean. Since county is a proxy for socioeconomic status, it would be worthwhile to link counties through census data to useful socioeconomic indicator such as median income. This would reduce the number of covariates significantly. This would require the addition of another dataset to our analysis, so for the purpose of this study we will choose to ignore the CORES variable.
+Certain counties appeared to have significant deviation from the mean. Since county is a proxy for socioeconomic status, it would be worthwhile to link counties through census data to useful a socioeconomic indicator such as median income. This would require the addition of another dataset to our analysis which we did not have the time to explore. For the purpose of this study we will choose to ignore the CORES variable.
 
 Inspecting year of bith more closely, we see little variation in any of the covariates year over year.
 
@@ -336,7 +333,7 @@ Note in most cases we observe an initial drop from zero followed by wild fluctua
  - `r paste0(round(mean(birth_data$CIGFN == 0), 3) * 100, '%')` of women don't smoke during the first trimester.
  - `r paste0(round(mean(birth_data$CIGSN == 0), 3) * 100, '%')` of women don't smoke during the second trimester.
  - `r paste0(round(mean(birth_data$CIGLN == 0), 3) * 100, '%')` of women don't smoke during the last trimester.
- 
+
 In addition, a correlation matrix revealed heavy correlations between all of the smoking variables.
 
 ```{r echo=FALSE}
@@ -347,51 +344,51 @@ This lead us to beleive that binarizing each of the smoking covariates or combin
 
 ## Model Selection
 
-Based on the exploratory data analysis we devised the following suite of models to train and evaluate:
+Based on the exploratory data analysis we devised a suite of models to train and evaluate.
 
-```{r, echo=FALSE, cache=FALSE}
+```{r, echo=FALSE, cache=FALSE, include=FALSE}
 models = list(
   # All covariates included without transformation
   full = "BWTG ~ YOB + SEX + CORES + CIGPN  + CIGSN + CIGLN + GEST + PLUR + MAGE + MRACER + MHISP + PARITY",
-  
+
   # Full model with YOB and CORES dropped to simplify interpretation
   dyob_dcores = "BWTG ~ SEX + CIGPN + CIGFN + CIGSN + CIGLN + GEST + PLUR + MAGE + MRACER + MHISP + PARITY",
-  
+
   #
   # All the models below have YOB and CORES dropped
   #
-  
+
   # With smoking (per term) binarized
   bsmokes = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + MRACER + MHISP + PARITY",
-  
+
   # Binarize smoking (per term), parity
   bsmokes_bpar = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + MRACER + MHISP + PARITYBIN",
-  
+
   # Binarize smoking (per term), parity, hisp
   bsmokes_bpar_bhisp = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + MRACER + HISP + PARITYBIN",
-  
+
   # Binarize smoking (per term), binarize party, recategorize race, binarize hispanic
   bsmokes_bpar_crace_bhisp = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + HISP + PARITYBIN",
-  
+
   # Binarize smoking (per term), binarize party, drop hispanic
   bsmokes_bpar_crace_dhisp = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN",
-  
+
   # Binarize smoking categories, square gestation
   bsmokes_bpar_crace_dhisp_gest2 = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST^2 + PLUR + MAGE + RACE + PARITYBIN",
-  
+
   # Binarize smoking categories, square gestation, square mage
   bsmokes_bpar_crace_dhisp_mage2 = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE^2 + RACE + PARITYBIN",
-  
+
   # Binarize smoking into a single variable
   bsmoke = "BWTG ~ SEX + SMOKER + GEST + PLUR + MAGE + MRACER + MHISP + PARITY",
 
   # Simplest model for interpretation
   simple = "BWTG ~ SEX + SMOKER + GEST + PLUR + MAGE + RACE + HISP + PARITYBIN",
-  
+
   #
   # Below are log transformations of some of the above models
   #
-  
+
   full_log = "log(BWTG) ~ YOB + SEX + CORES + CIGPN  + CIGSN + CIGLN + GEST + PLUR + MAGE + MRACER + MHISP + PARITY",
   dyob_dcores_log = "log(BWTG) ~ SEX + CIGPN + CIGFN + CIGSN + CIGLN + GEST + PLUR + MAGE + MRACER + MHISP + PARITY",
   bsmokes_log = "log(BWTG) ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + MRACER + MHISP + PARITY",
@@ -417,44 +414,44 @@ for (model_name in names(models)) {
   }
   formula = models[[model_name]]
   print(paste0("Running model ", formula))
-  
+
   rsquareds = c()
   rmses = c()
-  
+
   for (i in 1:folds) {
     print(paste0("-- Fold ", i))
     test_indices = holdouts[[i]]
-    
+
     test = birth_data[test_indices,]
     train = birth_data[-test_indices,]
-  
+
     model = lm(formula, data = train)
 
     rsquared = summary(model)$r.squared
-    
+
     preds = predict(model, test)
-    
+
     if (grepl("log", formula)) {
       err = rmse(test$BWTG, exp(preds))
     } else {
-      err = rmse(test$BWTG, preds)  
+      err = rmse(test$BWTG, preds)
     }
-    
+
     rmses = c(rmses, err)
     rsquareds = c(rsquareds, rsquared)
   }
-  
+
   results[results$name == model_name,]$rsquared = mean(rsquareds)
   results[results$name == model_name,]$rmse = mean(rmses)
   results[results$name == model_name,]$finished = TRUE
-  
+
   print(paste0("Finished model ", formula))
 }
 ```
 
 With 5-fold cross validation, we see the following results for all of the models tested:
 
-```{r, echo= FALSE, cache= TRUE}
+```{r, echo= FALSE, cache=TRUE}
 formatted_results = results %>% dplyr::select(-finished) %>% mutate(rsquared = round(rsquared, 4), rmse = round(rmse, 2)) %>% arrange(rmse, -rsquared)
 formatted_results %>% knitr::kable()
 ```
@@ -468,7 +465,7 @@ Now that we have selected our covariates, we'll build our final OLS model and co
 We now train the model across the entire data set and evaluate it's performance.
 
 ```{r, echo=FALSE, cache=TRUE}
-ols = lm(BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN, data = birth_data[1:10000,])
+ols = lm(BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN, data = birth_data)
 summary(ols)
 par(mfrow=c(2,2))
 plot(ols)
@@ -479,40 +476,112 @@ In addition, the normality assumption is somewhat violated since the residuals a
 We'll now move on to robust regression to see if there is a significant improvement.
 
 ```{r, echo=FALSE, cache=TRUE}
-robust = rlm(BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN, data = birth_data[1:10000,])
+robust = rlm(BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN, data = birth_data)
 summary(robust)
 par(mfrow=c(2,2))
 plot(robust)
 ```
 
-In analyzing the robust regression, we see little improvement. Furthermore, we see little change in the effect sizes of the covariates. As such, we choose our OLS model for reporting.
+In analyzing the robust regression, we see little improvement. Furthermore, we see little change in the effect sizes of the covariates. Although we have issues with heteroskedasticity and normality, we presume it will only affect the standard errors. As such, we choose our OLS model for reporting.
 
 ## Quantile Regression
 
-### Full Model Based on OLS
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
-quant1 = rq(BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN, data = birth_data[1:10000,], tau=c(.05, .25, .5, .75, .95))
-summary(quant1)
-plot(quant1)
+We will now train a series of quantile regression models and evaluate their performance with 5-fold cross validation across five quantiles: 5%, 25%, 50%, 75%, and 95%.
+
+```{r, echo=FALSE, cache=TRUE, include=FALSE}
+models = list(
+  #
+  # All the models below have YOB and CORES dropped
+  #
+
+  # Binarize smoking (per term), parity
+  bsmokes_bpar = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + MRACER + MHISP + PARITYBIN",
+
+  # Binarize smoking (per term), binarize party, recategorize race, binarize hispanic
+  bsmokes_bpar_crace_bhisp = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + HISP + PARITYBIN",
+
+  # Binarize smoking (per term), binarize party, drop hispanic
+  bsmokes_bpar_crace_dhisp = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN",
+)
+
+N = nrow(birth_data)
+folds = 5
+holdouts = split(sample(1:N), 1:folds)
+
+results = data.frame(melt(models)[,c(2,1)]) %>% rename(name = L1, formula = value) %>% mutate(formula = as.character(formula))
+results$finished = FALSE
+quantiles=c(.05, .25, .5, .75, .95)
+results$`5%` = 0
+results$`25%` = 0
+results$`50%` = 0
+results$`75%` = 0
+results$`95%` = 0
+
+for (model_name in names(models)) {
+  if (results[results$name == model_name,]$finished) {
+    next()
+  }
+  formula = models[[model_name]]
+  print(paste0("Running model ", formula))
+
+  maes = 0
+
+  for (i in 1:folds) {
+    print(paste0("-- Fold ", i))
+    test_indices = holdouts[[i]]
+
+    test = birth_data[test_indices,]
+    train = birth_data[-test_indices,]
+
+    model = rq(formula, data = train, tau=quantiles)
+    
+    if (maes == 0) {
+      maes = quantile_errors(model, train, test)
+    } else {
+      maes = maes + quantile_errors(model, train, test)
+    }
+  }
+
+  mae_avg = maes / folds
+  
+  
+  results[results$name == model_name,]$`5%` = maes[1]
+  results[results$name == model_name,]$`25%` = maes[2]
+  results[results$name == model_name,]$`50%` = maes[3]
+  results[results$name == model_name,]$`75%` = maes[4]
+  results[results$name == model_name,]$`95%` = maes[5]
+  results[results$name == model_name,]$finished = TRUE
+
+  print(paste0("Finished model ", formula))
+}
 ```
 
-### Model Without Smoking Status
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
-quant2 = rq(BWTG ~ SEX + GEST + PLUR + MAGE + RACE + PARITYBIN, data = birth_data[1:10000,], tau=c(.05, .25, .5, .75, .95))
-summary(quant2)
-plot(quant2)
+Comparing errors across quantiles, we see roughly the same errors across all the quantiles.
+
+```{r, echo=FALSE, cache=TRUE}
+formatted_results = results %>% dplyr::select(name, formula, `5%`, `25%`, `50%`, `75%`, `95%`) %>%
+  mutate(
+    `5%` = round(`5%`, 2),
+    `25%` = round(`25%`, 2),
+    `50%` = round(`50%`, 2),
+    `75%` = round(`75%`, 2),
+    `95%` = round(`95%`, 2)
+  ) %>% arrange(`5%`)
+formatted_results %>% knitr::kable()
 ```
 
+Since there's little difference, we'll use the same covariates as we did for OLS and robust regression.
 
-### Model With Smoking Binary
-```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
-quant3 = rq(BWTG ~ SEX + SMOKER + GEST + PLUR + MAGE + RACE + PARITYBIN, data = birth_data[1:10000,], tau=c(.05, .25, .5, .75, .95))
-summary(quant3)
-plot(quant3)
+```{r, echo=FALSE, cache=TRUE}
+quant = rq(BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN, data = birth_data)
+summary(quant)
+plot(quant)
 ```
 
 ## Interpretation and Conclusion
 
-TODO: Interpretation of OLS model for RACE = W, SEX = 1, MAGE = 28, GEST = 40, PLUR = 1, PARITY = 0
+[Faraz: I think we just need to report on the effect of smoking]
 
-TODO: Interpretation of quantile model
+TODO: Interpretation of CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN from OLS model for RACE = W, SEX = 1, MAGE = 28, GEST = 40, PLUR = 1, PARITY = 0
+
+TODO: Interpretation of CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN from quantile model for RACE = W, SEX = 1, MAGE = 28, GEST = 40, PLUR = 1, PARITY = 0 at the 5% quantile and 25% quantile (see slides)
