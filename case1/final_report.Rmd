@@ -406,7 +406,6 @@ results = data.frame(melt(models)[,c(2,1)]) %>% rename(name = L1, formula = valu
 results$rsquared = 0
 results$rmse = 0
 results$finished = FALSE
-tibble(results)
 
 for (model_name in names(models)) {
   if (results[results$name == model_name,]$finished) {
@@ -501,7 +500,7 @@ models = list(
   bsmokes_bpar_crace_bhisp = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + HISP + PARITYBIN",
 
   # Binarize smoking (per term), binarize party, drop hispanic
-  bsmokes_bpar_crace_dhisp = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN",
+  bsmokes_bpar_crace_dhisp = "BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN"
 )
 
 N = nrow(birth_data)
