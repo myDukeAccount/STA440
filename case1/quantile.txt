@@ -1,0 +1,113 @@
+Final Report Quantile Coefficients
+
+Show in New WindowClear OutputExpand/Collapse Output
+6 non-positive fis11 non-positive fis1 non-positive fis
+Call: rq(formula = BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN +
+    GEST + PLUR + MAGE + RACE + PARITYBIN, tau = c(0.05, 0.25,
+    0.5, 0.75, 0.95), data = birth_data)
+
+tau: [1] 0.05
+
+Coefficients:
+            Value       Std. Error  t value     Pr(>|t|)
+(Intercept) -4100.15951    21.55936  -190.17999     0.00000
+SEX2          -98.47239     1.97357   -49.89556     0.00000
+CIGPNBIN1     -28.76074     5.66899    -5.07334     0.00000
+CIGFNBIN1     -66.68712     8.62535    -7.73153     0.00000
+CIGSNBIN1     -56.56442    11.81351    -4.78811     0.00000
+CIGLNBIN1     -83.88957    10.38808    -8.07556     0.00000
+GEST          180.77914     0.48104   375.80709     0.00000
+PLUR         -240.23926     4.68361   -51.29358     0.00000
+MAGE            1.81595     0.18274     9.93757     0.00000
+RACEA        -129.22699     4.96952   -26.00392     0.00000
+RACEB        -157.40491     2.27905   -69.06596     0.00000
+RACEO         -64.84663     3.20286   -20.24648     0.00000
+PARITYBIN1    100.34969     2.23003    44.99932     0.00000
+
+Call: rq(formula = BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN +
+    GEST + PLUR + MAGE + RACE + PARITYBIN, tau = c(0.05, 0.25,
+    0.5, 0.75, 0.95), data = birth_data)
+
+tau: [1] 0.25
+
+Coefficients:
+            Value       Std. Error  t value     Pr(>|t|)
+(Intercept) -3605.55444    12.69433  -284.02867     0.00000
+SEX2         -117.03183     1.23049   -95.10999     0.00000
+CIGPNBIN1     -14.67002     3.28032    -4.47213     0.00001
+CIGFNBIN1     -59.07538     5.59863   -10.55175     0.00000
+CIGSNBIN1     -49.58291     7.98153    -6.21221     0.00000
+CIGLNBIN1    -111.25461     6.96144   -15.98156     0.00000
+GEST          177.79229     0.28081   633.14185     0.00000
+PLUR         -276.85762     2.95360   -93.73575     0.00000
+MAGE            3.33166     0.11394    29.24010     0.00000
+RACEA        -161.11055     3.13685   -51.36067     0.00000
+RACEB        -174.64824     1.52709  -114.36662     0.00000
+RACEO         -74.78392     1.83461   -40.76292     0.00000
+PARITYBIN1    103.02513     1.38951    74.14481     0.00000
+
+Call: rq(formula = BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN +
+    GEST + PLUR + MAGE + RACE + PARITYBIN, tau = c(0.05, 0.25,
+    0.5, 0.75, 0.95), data = birth_data)
+
+tau: [1] 0.5
+
+Coefficients:
+            Value       Std. Error  t value     Pr(>|t|)
+(Intercept) -3380.05140    11.96387  -282.52153     0.00000
+SEX2         -126.97196     1.17874  -107.71843     0.00000
+CIGPNBIN1      -5.48598     3.17335    -1.72877     0.08385
+CIGFNBIN1     -62.70093     5.40413   -11.60242     0.00000
+CIGSNBIN1     -49.75701     7.31986    -6.79753     0.00000
+CIGLNBIN1    -114.89720     6.25970   -18.35507     0.00000
+GEST          178.89252     0.26590   672.78960     0.00000
+PLUR         -312.57944     2.51272  -124.39903     0.00000
+MAGE            4.66355     0.10881    42.85772     0.00000
+RACEA        -177.22430     2.88537   -61.42161     0.00000
+RACEB        -183.16822     1.42717  -128.34336     0.00000
+RACEO         -85.67290     1.83845   -46.60055     0.00000
+PARITYBIN1    104.23364     1.32272    78.80222     0.00000
+
+Call: rq(formula = BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN +
+    GEST + PLUR + MAGE + RACE + PARITYBIN, tau = c(0.05, 0.25,
+    0.5, 0.75, 0.95), data = birth_data)
+
+tau: [1] 0.75
+
+Coefficients:
+            Value       Std. Error  t value     Pr(>|t|)
+(Intercept) -3052.36402    14.82229  -205.93070     0.00000
+SEX2         -135.04603     1.40802   -95.91230     0.00000
+CIGPNBIN1       3.42259     3.53712     0.96762     0.33323
+CIGFNBIN1     -61.71130     6.00947   -10.26901     0.00000
+CIGSNBIN1     -54.68201     8.54993    -6.39561     0.00000
+CIGLNBIN1    -121.62343     7.47242   -16.27632     0.00000
+GEST          178.02510     0.33205   536.13927     0.00000
+PLUR         -372.76151     2.88003  -129.42955     0.00000
+MAGE            6.44770     0.13069    49.33429     0.00000
+RACEA        -189.91213     3.52754   -53.83692     0.00000
+RACEB        -187.81590     1.73670  -108.14514     0.00000
+RACEO         -88.68201     2.15465   -41.15850     0.00000
+PARITYBIN1    105.99582     1.56896    67.55816     0.00000
+
+Call: rq(formula = BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN +
+    GEST + PLUR + MAGE + RACE + PARITYBIN, tau = c(0.05, 0.25,
+    0.5, 0.75, 0.95), data = birth_data)
+
+tau: [1] 0.95
+
+Coefficients:
+            Value       Std. Error  t value     Pr(>|t|)
+(Intercept) -1874.44444    37.92526   -49.42469     0.00000
+SEX2         -141.66667     2.51846   -56.25129     0.00000
+CIGPNBIN1      28.33333     6.42815     4.40770     0.00001
+CIGFNBIN1     -57.00000    11.52142    -4.94731     0.00000
+CIGSNBIN1     -65.33333    15.63195    -4.17947     0.00003
+CIGLNBIN1    -151.55556    13.25974   -11.42976     0.00000
+GEST          160.88889     0.87122   184.67038     0.00000
+PLUR         -516.22222     6.60397   -78.16842     0.00000
+MAGE            9.44444     0.23694    39.85942     0.00000
+RACEA        -207.44444     7.01794   -29.55915     0.00000
+RACEB        -187.11111     3.33641   -56.08162     0.00000
+RACEO         -75.88889     3.99189   -19.01077     0.00000
+PARITYBIN1    113.33333     2.82608    40.10264     0.00000

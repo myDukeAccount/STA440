@@ -572,10 +572,13 @@ formatted_results %>% knitr::kable()
 
 Since there's little difference, we'll use the same covariates as we did for OLS and robust regression.
 
-```{r, echo=FALSE, cache=TRUE}
-quant = rq(BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN, data = birth_data)
+```{r, echo=FALSE, cache=TRUE, include=FALSE}
+quant = rq(BWTG ~ SEX + CIGPNBIN + CIGFNBIN + CIGSNBIN + CIGLNBIN + GEST + PLUR + MAGE + RACE + PARITYBIN, data = birth_data, tau=c(.05, .25, .5, .75, .95))
 summary(quant)
-plot(quant)
+```
+
+```{r echo=FALSE, cache=TRUE}
+plot(summary(quant))
 ```
 
 ## Interpretation and Conclusion
