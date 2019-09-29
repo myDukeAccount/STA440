@@ -1,0 +1,151 @@
+---
+title: 'Case Study 2: Visualization of World Happiness Data'
+author: "Moriah Taylor, Faraz Yashar, AJ Eckmann, Audreya Metz, Naya Chen"
+date: "9/29/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Setup
+```{r, function checking for installed packages, include=FALSE, echo=FALSE}
+# Source for function: https://stackoverflow.com/questions/9341635/check-for-installed-packages-before-running-install-packages
+pkgTest <- function(x)
+  {
+    if (!require(x,character.only = TRUE))
+    {
+      install.packages(x,repos = "http://cran.r-project.org", dep=TRUE)
+        if(!require(x,character.only = TRUE)) stop("Package not found")
+    }
+  }
+```
+
+```{r}
+# Load any necessary packages here
+pkgTest("shiny")
+pkgTest("tidyr")
+pkgTest("stringr")
+pkgTest("rvest")
+pkgTest("dplyr")
+pkgTest("purrr")
+pkgTest("tidyverse")
+pkgTest("jsonlite")
+pkgTest("rsconnect")
+pkgTest("plotly")
+pkgTest("countrycode")
+library(shiny)
+library(tidyr)
+library(stringr)
+library(rvest)
+library(dplyr)
+library(purrr)
+library(tidyverse)
+library(jsonlite)
+library(rsconnect)
+library(plotly)
+library(countrycode)
+```
+
+<br/><br/>
+
+### Load Data
+```{r}
+world.data = read.csv("data/world_happiness.csv", na.strings = "NA")
+pop.data = read.csv("data/POP_TOTAL.csv", na.strings = "")
+pop.data = pop.data %>% mutate(country_code = Country.Code, pop = X2015) %>% select(country_code, pop)
+world.data = world.data %>% mutate(
+  OECD = as.factor(OECD),
+  country_code = countrycode(country, 'country.name', 'iso3c'),
+  continent = countrycode(country, "country.name", "continent"))
+world.data = world.data %>% left_join(pop.data, by=c("country_code"))
+```
+
+
+<br/><br/>
+
+### Shiny App
+```{r echo=FALSE}
+var_names = c("log GDP per capita" = "GDP_cap",
+  "Life expectancy" = "life_exp",
+  "Shortage of educational material" = "shortage_edu_resources",
+  "Average damages due to disasters,1980-2016" = "avg_damage",
+  "Citizens confidence with local police" = "conf_police",
+  "Citizens confidence with the judicial system" = "conf_judge",
+  "Citizens satisfaction with the education system" = "satisf_edu",
+  "Citizens satisfaction with the healthcare system" = "satisf_health",
+  "Confidence in national government" = "conf_natl_govt",
+  "General government expenditures as a percentage of GDP" = "govt_exp_GDP",
+  "Rule of law & Fundamental rights" = "fund_rights", 
+  "whether or not the country is an OECD" = "OECD"
+)
+
+# ---------------------------------------
+  
+ui <- fluidPage(
+  headerPanel("World Happiness"),
+  sidebarPanel(
+     # add a different panel for selecting parameters
+     # select parameter
+    radioButtons(inputId = "parameter", 
+        label = "Explore the relationships between happiness score and the following variables", 
+        var_names, selected = NULL)
+  ),
+  # plot
+  mainPanel(
+    fluidRow(plotlyOutput("map")),
+    div(
+        textOutput("p_name"),
+        style="text-align: center;"
+    ),
+    plotOutput("p")
+  )
+)
+  
+# ---------------------------------------
+  
+server <- function(input, output) {
+ output$map = renderPlotly({
+    # light grey boundaries
+    l <- list(color = toRGB("grey"), width = 0.5)
+    
+    # specify map projection/options
+    g <- list(
+      showframe = FALSE,
+      showcoastlines = FALSE,
+      projection = list(type = 'Mercator')
+    )
+    
+    p <- plot_geo(world.data) %>%
+      add_trace(
+        z = ~happy_score, color = ~happy_score, colors = 'Blues',
+        locations = ~country_code, text = ~paste(country, lower_happy), hoverinfo = "text", marker = list(line = l)
+      ) %>%
+      colorbar(title = 'Happiness Score') %>%
+      layout(
+        title = '2016 World Happiness Score',
+        geo = g
+      )
+    
+    p
+ })
+
+  # display plot name
+  output$p_name = renderText({
+      paste0("Happiness Score ", "vs. ", input$parameter)
+  })
+  
+  output$p = renderPlot({
+      ggplot(world.data, aes_string(x=input$parameter, y=world.data$happy_score)) +
+      geom_point(alpha=0.8, aes(size = pop, color = as.factor(continent))) +
+      scale_size_continuous(range = c(2, 20)) +
+      labs(y = "Happiness Score(1-10)", size = "population size", color = "continent") +
+      theme_bw(base_size = 19)
+  })
+}
+
+# ---------------------------------------
+  
+shinyApp(ui = ui, server = server)
+```
